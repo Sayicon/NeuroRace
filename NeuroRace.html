@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Evo Racer - Realistic Track</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto+Mono:wght@300;500&display=swap');
+
+        body {
+            background-color: #0b0f19;
+            color: #e2e8f0;
+            font-family: 'Roboto Mono', monospace;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1, h2, h3 { font-family: 'Orbitron', sans-serif; }
+
+        #dashboard {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+
+        .stat-card {
+            background: rgba(15, 23, 42, 0.9);
+            border-left: 3px solid #3b82f6;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 0 6px 6px 0;
+        }
+
+        #middle-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            height: 100%;
+        }
+        .brain-card {
+            flex: 1;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        #game-container {
+            width: 100%;
+            height: 35vh;
+            background: #000;
+            border: 2px solid #3b82f6;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            flex-shrink: 0; 
+        }
+
+        #network-canvas-container {
+            flex: 1;
+            background: radial-gradient(circle at center, #172033 0%, #0b0f19 100%);
+            border-radius: 12px;
+            border: 1px solid #1e293b;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+            position: relative;
+            overflow: hidden;
+            min-height: 200px;
+        }
+
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%;
+            background: #60a5fa; cursor: pointer; margin-top: -5px; box-shadow: 0 0 10px #3b82f6;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: #334155; border-radius: 2px;
+        }
+        input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+
+        .car-grid-item {
+            display: flex; align-items: center; gap: 5px; font-size: 10px;
+            padding: 2px 0; border-bottom: 1px solid #1e293b;
+        }
+        .status-badge { padding: 1px 4px; border-radius: 2px; font-weight: bold; font-size: 8px; min-width: 40px; text-align: center; }
+        .badge-finished { background: #22c55e; color: #000; }
+        .badge-crashed { background: #ef4444; color: #fff; }
+        .badge-running { background: #3b82f6; color: #fff; }
+        
+        .decision-bar-container {
+            flex: 1; height: 3px; background: #334155; border-radius: 2px; overflow: hidden; display: flex;
+        }
+        .decision-bar { height: 100%; }
+        
+        .car-color-dot {
+            width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px;
+        }
+
+        @media (max-width: 1024px) {
+            body { overflow-y: auto; }
+            #main-layout { flex-direction: column; }
+            #left-panel, #right-panel, #middle-panel { width: 100% !important; margin-bottom: 20px; }
+            #middle-panel { height: 400px; }
+            #right-panel { height: auto; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="dashboard">
+        <div id="main-layout" class="flex h-full gap-4">
+            
+            <!-- 1. SOL PANEL -->
+            <div id="left-panel" class="w-1/4 flex flex-col gap-2 pt-1 h-full">
+                <h1 class="text-2xl text-blue-500 tracking-widest mb-2">NEURO<span class="text-white">RACE</span></h1>
+                
+                <div class="flex gap-2 mb-1">
+                    <button id="btn-pause" onclick="togglePause()" class="flex-1 bg-yellow-600/40 hover:bg-yellow-500 hover:text-black text-yellow-200 text-xs py-2 rounded border border-yellow-600/50 transition font-bold">DURAKLAT</button>
+                    <button onclick="resetSim()" class="flex-1 bg-red-900/40 hover:bg-red-600 hover:text-white text-red-200 text-xs py-2 rounded border border-red-800/50 transition font-bold">SIFIRLA</button>
+                </div>
+
+                <div class="bg-slate-800/40 p-2 rounded border border-slate-700 mb-1 flex items-center gap-2">
+                    <div class="text-[10px] text-slate-400 leading-tight">HEDEF<br>NESİL:</div>
+                    <input type="number" id="target-gen" placeholder="∞" class="w-full bg-black/50 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:border-blue-500 outline-none text-center font-mono">
+                </div>
+                
+                <div class="bg-slate-800/40 p-2 rounded border border-slate-700 mb-1 flex items-center gap-2">
+                    <div class="text-[10px] text-slate-400 leading-tight w-full text-center">
+                        AKTİF PİST: <span id="track-type-label" class="text-yellow-400 font-bold">ORGANİK</span>
+                    </div>
+                </div>
+
+                <div class="stat-card border-l-purple-500">
+                    <div class="flex justify-between items-end mb-1">
+                        <h3 class="text-xs text-purple-400 font-bold">ZAMAN AKIŞI</h3>
+                        <span id="speed-val" class="text-xs font-mono text-white">1.0x</span>
+                    </div>
+                    <input type="range" id="sim-speed" min="0" max="5" step="0.1" value="1" class="w-full">
+                </div>
+
+                <div class="stat-card border-l-cyan-500">
+                    <h3 class="text-[10px] text-slate-400">NESİL SÜRESİ</h3>
+                    <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden mt-1">
+                        <div id="time-bar" class="h-full bg-cyan-400" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-[9px] text-slate-400 mt-1">
+                        <span id="current-time">0</span> / <span id="max-time">1200</span> Frame
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <div class="stat-card flex-1 border-l-green-500">
+                        <h3 class="text-[10px] text-slate-400">NESİL</h3>
+                        <div class="text-2xl font-bold text-white" id="gen-count">1</div>
+                    </div>
+                    <div class="stat-card flex-1 border-l-red-500">
+                        <h3 class="text-[10px] text-slate-400">BİTİREN</h3>
+                        <div class="text-2xl font-bold text-white"><span id="finished-count" class="text-green-400">0</span><span class="text-sm text-slate-500">/15</span></div>
+                    </div>
+                </div>
+
+                <div class="flex-1 bg-slate-900/50 rounded border border-slate-800 p-2 overflow-hidden flex flex-col min-h-[150px]">
+                    <h3 class="text-xs text-blue-300 mb-2 border-b border-slate-700 pb-1">SIRALAMA & ANALİZ</h3>
+                    <div class="flex text-[9px] text-slate-500 mb-1 px-1 gap-2">
+                        <span class="w-4">#</span>
+                        <span class="w-10">DURUM</span>
+                        <span class="flex-1 text-center">KARAR (YÖN/GAZ)</span>
+                        <span class="w-8 text-right">SKOR</span>
+                    </div>
+                    <div id="fleet-list" class="overflow-y-auto flex-1 pr-1 space-y-1"></div>
+                </div>
+            </div>
+
+            <!-- 2. ORTA PANEL: TOP 3 BEYİNLER -->
+            <div id="middle-panel" class="flex-1 h-full">
+                <h3 class="text-xs text-center text-blue-300 font-bold tracking-widest mb-1">LİDER ARAÇ ANALİZİ</h3>
+                
+                <!-- Araç 1 -->
+                <div class="brain-card">
+                    <div class="absolute top-1 left-2 text-[10px] font-bold text-yellow-400 flex items-center gap-1">
+                        <span class="text-lg">#1</span> <span id="top1-score" class="opacity-70 text-[8px]"></span>
+                    </div>
+                    <canvas id="net-top-1" class="w-full h-full"></canvas>
+                </div>
+
+                <!-- Araç 2 -->
+                <div class="brain-card">
+                     <div class="absolute top-1 left-2 text-[10px] font-bold text-slate-300 flex items-center gap-1">
+                        <span class="text-lg">#2</span> <span id="top2-score" class="opacity-70 text-[8px]"></span>
+                    </div>
+                    <canvas id="net-top-2" class="w-full h-full"></canvas>
+                </div>
+
+                <!-- Araç 3 -->
+                <div class="brain-card">
+                     <div class="absolute top-1 left-2 text-[10px] font-bold text-orange-400 flex items-center gap-1">
+                        <span class="text-lg">#3</span> <span id="top3-score" class="opacity-70 text-[8px]"></span>
+                    </div>
+                    <canvas id="net-top-3" class="w-full h-full"></canvas>
+                </div>
+            </div>
+
+            <!-- 3. SAĞ PANEL -->
+            <div id="right-panel" class="w-[38vw] flex flex-col gap-3 h-full">
+                
+                <div id="game-container">
+                    <div id="game-canvas-wrapper" class="w-full h-full relative">
+                        <div class="absolute top-2 left-2 text-[10px] text-blue-400 font-bold z-10 bg-black/70 px-2 py-1 rounded border border-blue-900/50">
+                            CAM: <span id="camera-target-name" class="text-yellow-400">LİDER</span> <span class="animate-pulse text-red-500">● REC</span>
+                        </div>
+                        <div id="pause-overlay" class="hidden absolute inset-0 bg-black/60 flex items-center justify-center z-20 backdrop-blur-sm">
+                            <div class="text-yellow-400 font-bold text-xl border-2 border-yellow-400 px-4 py-2 rounded animate-pulse">DURAKLATILDI</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-end">
+                    <h2 class="text-sm text-white flex items-center gap-2">
+                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        AKTİF ARAÇ DETAYI
+                    </h2>
+                    <button onclick="saveBestCar()" class="text-[9px] bg-blue-900/50 hover:bg-blue-700 text-blue-200 px-2 py-1 rounded border border-blue-700 transition">
+                        JSON İNDİR
+                    </button>
+                </div>
+
+                <div id="network-canvas-container">
+                    <canvas id="network-canvas" class="w-full h-full"></canvas>
+                    <div class="absolute bottom-2 right-2 bg-black/80 p-2 rounded border border-slate-700 text-[9px] font-mono text-slate-300">
+                        <div class="flex justify-between gap-4"><span>Sol:</span> <span id="s-0" class="text-yellow-400">0%</span></div>
+                        <div class="flex justify-between gap-4"><span>Orta:</span> <span id="s-2" class="text-yellow-400">0%</span></div>
+                        <div class="flex justify-between gap-4"><span>Sağ:</span> <span id="s-4" class="text-yellow-400">0%</span></div>
+                        <div class="border-t border-slate-600 my-1"></div>
+                        <div class="flex justify-between gap-4"><span>Yön:</span> <span id="out-turn" class="text-red-400">0.0</span></div>
+                        <div class="flex justify-between gap-4"><span>Gaz:</span> <span id="out-gas" class="text-red-400">0.0</span></div>
+                    </div>
+                </div>
+
+                <div id="logs" class="h-24 bg-black/40 rounded border border-slate-800 p-2 text-[10px] font-mono text-green-500 overflow-y-auto flex-shrink-0">
+                    > Simülasyon Hazır.<br>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function log(msg) {
+            const l = document.getElementById('logs');
+            if (l) {
+                l.innerHTML = `> ${msg}<br>` + l.innerHTML;
+            } else {
+                console.log("[LOG]:", msg);
+            }
+        }
+
+        const CONFIG = {
+            carCount: 15,
+            sensorCount: 5,
+            trackWidth: 18, 
+            rayLength: 70,
+            mutationRate: 0.15,
+            turnSpeed: 0.1,
+            maxSpeed: 1.5,
+            generationTime: 1200,
+            pointCount: 150 
+        };
+        
+        const CAR_COLORS = [
+            0xff0000, 0x0088ff, 0x00ff00, 0xffff00, 0xff8800, 
+            0xcc00ff, 0x00ffff, 0xff00ff, 0x00ff88, 0xff8888, 
+            0x8888ff, 0x88ff88, 0xffffff, 0x888888, 0x880000
+        ];
+
+        let simSpeed = 1.0;
+        let generation = 1;
+        let cars = [];
+        let roadPoints = [];
+        let scene, camera, renderer;
+        let bestCar = null;
+        let isPaused = false;
+        let cameraTargetPos = new THREE.Vector3(0,0,0);
+        let cameraLookAtPos = new THREE.Vector3(0,0,0);
+        let visualBestCar = null;
+        let currentTrackIdx = 0;
+        const trackTypes = ['ORGANİK', 'HIZLI OVAL', 'TEKNİK (YILDIZ)', 'KARMAŞIK'];
+        let trackMeshes = [];
+
+        const maxTimeEl = document.getElementById('max-time');
+        if(maxTimeEl) maxTimeEl.innerText = CONFIG.generationTime;
+
+        const speedSlider = document.getElementById('sim-speed');
+        const speedLabel = document.getElementById('speed-val');
+        speedSlider.addEventListener('input', (e) => {
+            simSpeed = parseFloat(e.target.value);
+            speedLabel.innerText = simSpeed.toFixed(1) + 'x';
+        });
+        
+        function togglePause() {
+            isPaused = !isPaused;
+            const btn = document.getElementById('btn-pause');
+            const overlay = document.getElementById('pause-overlay');
+            
+            if(isPaused) {
+                btn.innerText = "DEVAM ET";
+                btn.classList.remove('bg-yellow-600/40', 'text-yellow-200');
+                btn.classList.add('bg-green-600/40', 'text-green-200', 'border-green-600/50');
+                overlay.classList.remove('hidden');
+            } else {
+                btn.innerText = "DURAKLAT";
+                btn.classList.remove('bg-green-600/40', 'text-green-200', 'border-green-600/50');
+                btn.classList.add('bg-yellow-600/40', 'text-yellow-200');
+                overlay.classList.add('hidden');
+            }
+        }
+
+        function saveBestCar() {
+            if(!bestCar) return;
+            
+            const brainExport = {
+                inputCount: bestCar.brain.inputCount,
+                hiddenCount: bestCar.brain.hiddenCount,
+                outputCount: bestCar.brain.outputCount,
+                weightsIH: Array.from(bestCar.brain.weightsIH),
+                weightsHO: Array.from(bestCar.brain.weightsHO),
+                biasesH: Array.from(bestCar.brain.biasesH),
+                biasesO: Array.from(bestCar.brain.biasesO)
+            };
+
+            const data = {
+                generation: generation,
+                finishTime: bestCar.finished ? bestCar.finishTime : null,
+                score: bestCar.score,
+                brain: brainExport
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const timeStr = bestCar.finished ? `T${bestCar.finishTime}` : 'DNF';
+            a.download = `Racer_Gen${generation}_${timeStr}.json`;
+            a.click();
+        }
+
+        function createTrack(idx) {
+            const points = [];
+            const pointCount = CONFIG.pointCount;
+            for (let i = 0; i < pointCount; i++) {
+                const angle = (i / pointCount) * Math.PI * 2;
+                let x, z;
+                
+                if (idx === 0) { 
+                    const r = 90 + Math.sin(angle * 3) * 30 + Math.cos(angle * 2) * 20 + Math.sin(angle*9)*5;
+                    x = Math.cos(angle) * r; z = Math.sin(angle) * r;
+                } else if (idx === 1) { 
+                    x = Math.cos(angle) * 130; z = Math.sin(angle) * 70;
+                } else if (idx === 2) { 
+                    const r = 80 + Math.sin(angle * 5) * 35;
+                    x = Math.cos(angle) * r; z = Math.sin(angle) * r;
+                } else { 
+                    const r = 90 + Math.sin(angle * 7) * 15 + Math.cos(angle * 3) * 25;
+                    x = Math.cos(angle) * r; z = Math.sin(angle) * r;
+                }
+                points.push({ x, z });
+            }
+            return points;
+        }
+        roadPoints = createTrack(0);
+
+        function distToSegmentSquared(p, v, w) {
+            const l2 = (w.x - v.x)**2 + (w.z - v.z)**2;
+            if (l2 === 0) return (p.x - v.x)**2 + (p.z - v.z)**2;
+            let t = ((p.x - v.x) * (w.x - v.x) + (p.z - v.z) * (w.z - v.z)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            return (p.x - (v.x + t * (w.x - v.x)))**2 + (p.z - (v.z + t * (w.z - v.z)))**2;
+        }
+
+        function getMinDistToTrack(x, z, cpIndex) {
+            let minDistSq = Infinity;
+            const lookRange = 8; 
+            const len = roadPoints.length;
+            for (let i = -lookRange; i <= lookRange; i++) {
+                let idx1 = (cpIndex + i + len) % len;
+                let idx2 = (idx1 + 1) % len;
+                const p1 = roadPoints[idx1]; const p2 = roadPoints[idx2];
+                const dSq = distToSegmentSquared({x, z}, p1, p2);
+                if (dSq < minDistSq) minDistSq = dSq;
+            }
+            return Math.sqrt(minDistSq);
+        }
+
+        class NeuralNetwork {
+            constructor(inputCount, hiddenCount, outputCount) {
+                this.inputCount = inputCount; this.hiddenCount = hiddenCount; this.outputCount = outputCount;
+                this.weightsIH = new Float32Array(inputCount * hiddenCount);
+                this.weightsHO = new Float32Array(hiddenCount * outputCount);
+                this.biasesH = new Float32Array(hiddenCount); this.biasesO = new Float32Array(outputCount);
+                this.randomize();
+            }
+            randomize() {
+                const rand = () => Math.random() * 2 - 1;
+                for(let i=0; i<this.weightsIH.length; i++) this.weightsIH[i] = rand();
+                for(let i=0; i<this.weightsHO.length; i++) this.weightsHO[i] = rand();
+                for(let i=0; i<this.biasesH.length; i++) this.biasesH[i] = rand();
+                for(let i=0; i<this.biasesO.length; i++) this.biasesO[i] = rand();
+            }
+            mutate(rate) {
+                const mut = (v) => Math.random() < rate ? v + (Math.random() * 0.6 - 0.3) : v;
+                this.weightsIH = this.weightsIH.map(mut); this.weightsHO = this.weightsHO.map(mut);
+                this.biasesH = this.biasesH.map(mut); this.biasesO = this.biasesO.map(mut);
+            }
+            predict(inputs) {
+                this.lastInputs = inputs; this.lastHidden = new Float32Array(this.hiddenCount);
+                this.lastOutputs = new Float32Array(this.outputCount);
+                for(let i=0; i<this.hiddenCount; i++) {
+                    let sum = this.biasesH[i];
+                    for(let j=0; j<this.inputCount; j++) sum += inputs[j] * this.weightsIH[j * this.hiddenCount + i];
+                    this.lastHidden[i] = Math.tanh(sum);
+                }
+                for(let i=0; i<this.outputCount; i++) {
+                    let sum = this.biasesO[i];
+                    for(let j=0; j<this.hiddenCount; j++) sum += this.lastHidden[j] * this.weightsHO[j * this.outputCount + i];
+                    this.lastOutputs[i] = Math.tanh(sum); 
+                }
+                return this.lastOutputs;
+            }
+            static crossover(a, b) {
+                const child = new NeuralNetwork(a.inputCount, a.hiddenCount, a.outputCount);
+                const mix = (arA, arB) => {
+                    const res = new Float32Array(arA.length);
+                    const mid = Math.floor(Math.random() * arA.length);
+                    for(let i=0; i<arA.length; i++) res[i] = i < mid ? arA[i] : arB[i];
+                    return res;
+                };
+                child.weightsIH = mix(a.weightsIH, b.weightsIH); child.weightsHO = mix(a.weightsHO, b.weightsHO);
+                child.biasesH = mix(a.biasesH, b.biasesH); child.biasesO = mix(a.biasesO, b.biasesO);
+                return child;
+            }
+        }
+
+        class Car {
+            constructor(brain) {
+                const p1 = roadPoints[0];
+                const p2 = roadPoints[1];
+                this.angle = Math.atan2(p2.z - p1.z, p2.x - p1.x);
+                this.x = p1.x;
+                this.z = p1.z;
+                this.brain = brain || new NeuralNetwork(CONFIG.sensorCount, 6, 2);
+                this.mesh = null;
+                this.color = 0xffffff;
+                this.alive = true; this.finished = false; this.finishTime = 0;
+                this.checkpointIndex = 0; this.speed = 0;
+                this.score = 0;
+                this.sensors = new Array(CONFIG.sensorCount).fill(0);
+                this.lastOutputs = [0,0];
+                this.noMoveFrames = 0;
+            }
+            update() {
+                if (!this.alive || this.finished) return;
+                if (this.speed < 0.2) {
+                    this.noMoveFrames++;
+                    if(this.noMoveFrames > 180) { this.alive = false; this.speed = 0; return; }
+                } else { this.noMoveFrames = 0; }
+
+                const outputs = this.brain.predict(this.sensors);
+                this.lastOutputs = outputs;
+                const steering = outputs[0]; const throttle = outputs[1];
+                if (throttle > 0) this.speed += throttle * 0.1;
+                else this.speed *= 0.95;
+                if (this.speed > CONFIG.maxSpeed) this.speed = CONFIG.maxSpeed;
+                if (this.speed > 0.1) this.angle += steering * CONFIG.turnSpeed;
+                this.x += Math.cos(this.angle) * this.speed;
+                this.z += Math.sin(this.angle) * this.speed;
+                this.score = this.checkpointIndex * 10 + (this.speed * 100);
+
+                if (this.checkCollision()) { this.alive = false; this.speed = 0; return; }
+                this.checkProgress();
+                this.updateSensors();
+            }
+            checkCollision() {
+                const dist = getMinDistToTrack(this.x, this.z, this.checkpointIndex);
+                return dist > CONFIG.trackWidth - 1.0; 
+            }
+            checkProgress() {
+                const nextIdx = (this.checkpointIndex + 1) % roadPoints.length;
+                const target = roadPoints[nextIdx];
+                const d = Math.hypot(this.x - target.x, this.z - target.z);
+                if (d < 25) { 
+                    this.checkpointIndex = nextIdx;
+                    if (this.checkpointIndex === 0 && this.speed > 0) {
+                         this.finished = true; this.finishTime = frameCounter; this.speed = 0; 
+                    }
+                }
+            }
+            updateSensors() {
+                const angles = [-Math.PI/2, -Math.PI/4, 0, Math.PI/4, Math.PI/2];
+                let hitWall = false;
+                for(let i=0; i<CONFIG.sensorCount; i++) {
+                    let rayAngle = this.angle + angles[i];
+                    let reading = 1.0; const stepSize = 4; 
+                    for(let d=0; d<CONFIG.rayLength; d+=stepSize) {
+                        const tx = this.x + Math.cos(rayAngle) * d;
+                        const tz = this.z + Math.sin(rayAngle) * d;
+                        const dist = getMinDistToTrack(tx, tz, this.checkpointIndex);
+                        if(dist > CONFIG.trackWidth) {
+                            reading = d / CONFIG.rayLength;
+                            break;
+                        }
+                    }
+                    this.sensors[i] = reading;
+                }
+            }
+        }
+
+        function nextGeneration() {
+            cars.sort((a, b) => b.score - a.score);
+            bestCar = cars[0];
+            
+            const bestScoreEl = document.getElementById('best-score');
+            if (bestScoreEl) {
+                 const maxScore = Math.floor(bestCar.score);
+                 bestScoreEl.innerText = maxScore;
+            }
+            
+            const bestStatus = bestCar.finished 
+                ? `Süre: ${(bestCar.finishTime / 60).toFixed(2)}s` 
+                : `CP:${bestCar.checkpointIndex}`;
+            log(`Nesil ${generation} bitti. En iyi: ${bestStatus}`);
+
+            generation++;
+            
+            const genCountEl = document.getElementById('gen-count');
+            if(genCountEl) genCountEl.innerText = generation;
+            
+            frameCounter = 0;
+            visualBestCar = null;
+
+            const targetGen = parseInt(document.getElementById('target-gen').value);
+            if(targetGen && generation > targetGen) {
+                 log(`HEDEF NESİL (${targetGen}) TAMAMLANDI!`);
+                 generation--; 
+                 if(genCountEl) genCountEl.innerText = generation;
+                 if(!isPaused) togglePause();
+                 return;
+            }
+
+            if (generation % 10 === 1 && generation > 1) {
+                currentTrackIdx = (currentTrackIdx + 1) % 4;
+                roadPoints = createTrack(currentTrackIdx);
+                drawTrack3D();
+                log(`PİST DEĞİŞTİ! YENİ PİST: ${trackTypes[currentTrackIdx]}`);
+                const trackLabel = document.getElementById('track-type-label');
+                if(trackLabel) trackLabel.innerText = trackTypes[currentTrackIdx];
+            }
+
+            const newCars = [];
+            for(let i=0; i<2; i++) {
+                const c = new Car(cars[i].brain); c.color = '#00ff00'; newCars.push(c);
+            }
+            while(newCars.length < CONFIG.carCount) {
+                const p1 = cars[Math.floor(Math.random() * (CONFIG.carCount / 2))];
+                const p2 = cars[Math.floor(Math.random() * CONFIG.carCount)];
+                const childBrain = NeuralNetwork.crossover(p1.brain, p2.brain);
+                childBrain.mutate(CONFIG.mutationRate);
+                newCars.push(new Car(childBrain));
+            }
+            
+            cars.forEach(c => { if(c.mesh) scene.remove(c.mesh); });
+            cars = newCars;
+            cars.forEach((c, i) => { c.color = CAR_COLORS[i % CAR_COLORS.length]; });
+            createCarMeshes();
+        }
+
+        function resetSim() {
+            generation = 1;
+            frameCounter = 0;
+            visualBestCar = null;
+            currentTrackIdx = 0; 
+            roadPoints = createTrack(0);
+            
+            const genCountEl = document.getElementById('gen-count');
+            if(genCountEl) genCountEl.innerText = 1;
+            
+            const bestScoreEl = document.getElementById('best-score');
+            if(bestScoreEl) bestScoreEl.innerText = 0;
+            
+            const trackLabelEl = document.getElementById('track-type-label');
+            if(trackLabelEl) trackLabelEl.innerText = trackTypes[0];
+            
+            drawTrack3D();
+
+            if(isPaused) togglePause();
+            if(cars.length > 0) cars.forEach(c => scene.remove(c.mesh));
+            
+            cars = [];
+            for(let i=0; i<CONFIG.carCount; i++) {
+                const c = new Car();
+                c.color = CAR_COLORS[i % CAR_COLORS.length]; 
+                cars.push(c);
+            }
+            createCarMeshes();
+            log("Simülasyon sıfırlandı.");
+        }
+
+        function updatePhysics() {
+            frameCounter++;
+            const timeBar = document.getElementById('time-bar');
+            if(timeBar) timeBar.style.width = `${(frameCounter / CONFIG.generationTime) * 100}%`;
+            const curTime = document.getElementById('current-time');
+            if(curTime) curTime.innerText = frameCounter;
+
+            let activeCount = 0; let finishedCount = 0;
+            let activeCars = [];
+
+            cars.forEach(car => {
+                car.update();
+                if(car.finished) finishedCount++;
+                else if(car.alive) {
+                    activeCount++;
+                    activeCars.push(car);
+                }
+            });
+
+            let currentLeader = null;
+            if (activeCars.length > 0) {
+                activeCars.sort((a, b) => b.checkpointIndex - a.checkpointIndex);
+                currentLeader = activeCars[0];
+                const nameEl = document.getElementById('camera-target-name');
+                if(nameEl) nameEl.innerText = "AKTİF SÜRÜCÜ";
+            } else {
+                const finished = cars.filter(c => c.finished).sort((a, b) => a.finishTime - b.finishTime);
+                if(finished.length > 0) {
+                    currentLeader = finished[0];
+                    const nameEl = document.getElementById('camera-target-name');
+                    if(nameEl) nameEl.innerText = "KAZANAN";
+                } else {
+                    const dead = [...cars].sort((a, b) => b.checkpointIndex - a.checkpointIndex);
+                    currentLeader = dead[0];
+                    const nameEl = document.getElementById('camera-target-name');
+                    if(nameEl) nameEl.innerText = "ELENDİ";
+                }
+            }
+
+            bestCar = currentLeader;
+
+            if (!visualBestCar || !visualBestCar.alive) {
+                visualBestCar = bestCar;
+            } else if (bestCar && bestCar !== visualBestCar) {
+                if (bestCar.checkpointIndex > visualBestCar.checkpointIndex + 5) {
+                    visualBestCar = bestCar;
+                }
+            }
+
+            const finishedCountEl = document.getElementById('finished-count');
+            if(finishedCountEl) finishedCountEl.innerText = finishedCount;
+
+            if(activeCount === 0 || frameCounter >= CONFIG.generationTime) {
+                nextGeneration();
+            }
+        }
+
+        const fleetList = document.getElementById('fleet-list');
+
+        function updateUI() {
+            const targetCar = visualBestCar || bestCar;
+            if(!targetCar) return;
+
+            drawBrain(targetCar.brain, 'network-canvas');
+
+            const sortedCars = [...cars].sort((a, b) => {
+                 if (a.finished && b.finished) return a.finishTime - b.finishTime;
+                 if (a.finished) return -1;
+                 if (b.finished) return 1;
+                 return b.checkpointIndex - a.checkpointIndex;
+            });
+
+            if(sortedCars[0]) {
+                drawBrain(sortedCars[0].brain, 'net-top-1');
+                const el = document.getElementById('top1-score');
+                if(el) el.innerText = sortedCars[0].finished ? 'BİTTİ' : `CP:${sortedCars[0].checkpointIndex}`;
+            }
+            if(sortedCars[1]) {
+                drawBrain(sortedCars[1].brain, 'net-top-2');
+                const el = document.getElementById('top2-score');
+                if(el) el.innerText = sortedCars[1].finished ? 'BİTTİ' : `CP:${sortedCars[1].checkpointIndex}`;
+            }
+            if(sortedCars[2]) {
+                drawBrain(sortedCars[2].brain, 'net-top-3');
+                const el = document.getElementById('top3-score');
+                if(el) el.innerText = sortedCars[2].finished ? 'BİTTİ' : `CP:${sortedCars[2].checkpointIndex}`;
+            }
+
+            for(let i=0; i<5; i++) {
+                const el = document.getElementById(`s-${i}`);
+                if(el) el.innerText = ((1-targetCar.sensors[i])*100).toFixed(0) + '%';
+            }
+            document.getElementById('out-turn').innerText = targetCar.lastOutputs[0].toFixed(2);
+            document.getElementById('out-gas').innerText = targetCar.lastOutputs[1].toFixed(2);
+
+            if(fleetList) {
+                let html = '';
+                sortedCars.forEach((c, idx) => {
+                    let statusClass = c.finished ? 'badge-finished' : (c.alive ? 'badge-running' : 'badge-crashed');
+                    let statusText = c.finished ? 'BİTTİ' : (c.alive ? 'KOŞUYOR' : 'ÇARPTI');
+                    let scoreText = c.finished ? `${c.finishTime}f` : `CP:${c.checkpointIndex}`;
+                    let activeClass = (c === targetCar) ? 'bg-slate-700 border-l-2 border-yellow-400' : '';
+
+                    if(idx < 15) {
+                        const steerPct = (c.lastOutputs[0] + 1) * 50;
+                        const gasPct = Math.max(0, c.lastOutputs[1] * 100);
+
+                        html += `
+                        <div class="car-grid-item ${activeClass}">
+                            <div class="car-color-dot" style="background-color: ${'#' + c.color.toString(16).padStart(6, '0')};"></div>
+                            <span class="w-4 text-slate-500 font-mono">${idx+1}</span>
+                            <span class="status-badge ${statusClass}">${statusText}</span>
+                            <div class="flex flex-col flex-1 gap-1 mx-1">
+                                <div class="decision-bar-container">
+                                    <div class="decision-bar bg-blue-400" style="width: ${steerPct}%"></div>
+                                </div>
+                                <div class="decision-bar-container">
+                                    <div class="decision-bar bg-green-500" style="width: ${gasPct}%"></div>
+                                </div>
+                            </div>
+                            <span class="text-[9px] font-mono text-slate-300 w-8 text-right">${scoreText}</span>
+                        </div>`;
+                    }
+                });
+                fleetList.innerHTML = html;
+            }
+        }
+
+        function drawBrain(brain, canvasId) {
+            const canvas = document.getElementById(canvasId);
+            if(!canvas) return;
+            const ctx = canvas.getContext('2d');
+            
+            if(canvas.width !== canvas.parentElement.clientWidth) {
+                 canvas.width = canvas.parentElement.clientWidth;
+                 canvas.height = canvas.parentElement.clientHeight;
+            }
+
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            const w = canvas.width, h = canvas.height;
+            const xPad = Math.max(30, w * 0.15);
+            const nodePos = (l, i, cnt) => ({ 
+                x: xPad + l * (w - (xPad * 2)) / 2, 
+                y: h/2 + (i - (cnt-1)/2) * (h/cnt * 0.6) 
+            });
+
+            const drawConn = (l1, c1, l2, c2, w_arr, vals) => {
+                for(let i=0; i<c1; i++) {
+                    for(let j=0; j<c2; j++) {
+                        const val = vals ? vals[i] : 0;
+                        const weight = w_arr[i*c2+j];
+                        if(Math.abs(weight) < 0.1) continue;
+
+                        const start = nodePos(l1, i, c1);
+                        const end = nodePos(l2, j, c2);
+                        ctx.beginPath();
+                        ctx.moveTo(start.x, start.y);
+                        ctx.lineTo(end.x, end.y);
+                        ctx.lineWidth = Math.abs(weight) * 2;
+                        ctx.strokeStyle = weight > 0 ? `rgba(74, 222, 128, ${Math.abs(val)*0.8+0.1})` : `rgba(248, 113, 113, ${Math.abs(val)*0.8+0.1})`;
+                        ctx.stroke();
+                    }
+                }
+            };
+            drawConn(0, brain.inputCount, 1, brain.hiddenCount, brain.weightsIH, brain.lastInputs);
+            drawConn(1, brain.hiddenCount, 2, brain.outputCount, brain.weightsHO, brain.lastHidden);
+            
+            const showLabels = (canvasId === 'network-canvas');
+            const inputLabels = ['Sol 90', 'Sol 45', 'Ön', 'Sağ 45', 'Sağ 90'];
+            const outputLabels = ['Yön', 'Gaz'];
+
+            const drawNodes = (l, cnt, vals, color, labels, isLeft) => {
+                for(let i=0; i<cnt; i++) {
+                    const p = nodePos(l, i, cnt);
+                    const v = vals ? vals[i] : 0;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, showLabels ? 6 : 3, 0, Math.PI*2);
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fill();
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    
+                    if(Math.abs(v) > 0.1) {
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, (showLabels ? 6 : 3)*Math.abs(v), 0, Math.PI*2);
+                        ctx.fillStyle = color;
+                        ctx.fill();
+                    }
+
+                    if (showLabels && labels && labels[i]) {
+                        ctx.fillStyle = '#cbd5e1'; ctx.font = '10px Roboto Mono'; ctx.textBaseline = 'middle';
+                        ctx.textAlign = isLeft ? 'right' : 'left';
+                        ctx.fillText(labels[i], isLeft ? p.x - 15 : p.x + 15, p.y);
+                    }
+                }
+            };
+            drawNodes(0, brain.inputCount, brain.lastInputs, '#eab308', inputLabels, true);
+            drawNodes(1, brain.hiddenCount, brain.lastHidden, '#3b82f6', null, false);
+            drawNodes(2, brain.outputCount, brain.lastOutputs, '#ef4444', outputLabels, false);
+        }
+
+        function init3D() {
+            const container = document.getElementById('game-canvas-wrapper');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0b0f19);
+            // SİS GÜNCELLEMESİ: Daha uzak ve az yoğun
+            scene.fog = new THREE.Fog(0x0b0f19, 50, 450); 
+            
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 500);
+            camera.position.set(0, 100, 100);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+            scene.add(hemiLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(50, 100, 50);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+            
+            const grid = new THREE.GridHelper(400, 40, 0x1e293b, 0x0f172a);
+            scene.add(grid);
+
+            drawTrack3D();
+
+            window.addEventListener('resize', () => {
+                const w = container.clientWidth;
+                const h = container.clientHeight;
+                renderer.setSize(w, h);
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                const c = document.getElementById('network-canvas');
+                if(c) { c.width = c.parentElement.clientWidth; c.height = c.parentElement.clientHeight; }
+            });
+        }
+
+        function drawTrack3D() {
+            trackMeshes.forEach(m => scene.remove(m));
+            trackMeshes = [];
+
+            const curve = new THREE.CatmullRomCurve3(roadPoints.map(p => new THREE.Vector3(p.x, 0, p.z)));
+            curve.closed = true;
+
+            // 1. Asfalt (Road) - GÖRSEL GENİŞLİK: trackWidth
+            // Mantıksal sınır 18, görsel asfalt 18 birim (Tekerlekler tam sınırda kalır)
+            const roadRadius = CONFIG.trackWidth; 
+            const roadGeo = new THREE.TubeGeometry(curve, 150, roadRadius, 16, true); // radyalSegments = 16
+            const roadMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8, side: THREE.DoubleSide });
+            const road = new THREE.Mesh(roadGeo, roadMat);
+            road.scale.y = 0.05; road.receiveShadow = true;
+            scene.add(road);
+            trackMeshes.push(road);
+
+            // 2. Dış Çizgiler (Outline) - DÜZELTİLDİ
+            // Asfaltın bittiği yerin dışına (18.5) yerleştirelim.
+            const borderRadius = CONFIG.trackWidth + 0.5; // 18 + 0.5 = 18.5 (Yarıçap)
+            const borderGeo = new THREE.TubeGeometry(curve, 150, borderRadius, 16, true); // radyalSegments = 16
+            const borderMat = new THREE.MeshBasicMaterial({ 
+                color: 0x06b6d4, 
+                wireframe: true, 
+                transparent: true, 
+                opacity: 0.6 
+            });
+            const border = new THREE.Mesh(borderGeo, borderMat);
+            border.scale.y = 0.05; 
+            border.position.y = 0.02; 
+            scene.add(border);
+            trackMeshes.push(border);
+
+            // Start Çizgisi
+            const startLineGeo = new THREE.BoxGeometry(CONFIG.trackWidth * 2, 1, 2);
+            const startLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const startLine = new THREE.Mesh(startLineGeo, startLineMat);
+            startLine.position.set(roadPoints[0].x, 0.2, roadPoints[0].z);
+            startLine.lookAt(roadPoints[1].x, 0.2, roadPoints[1].z);
+            scene.add(startLine);
+            trackMeshes.push(startLine);
+        }
+
+        function createCarMeshes() {
+            const geo = new THREE.BoxGeometry(2, 1, 4);
+            cars.forEach(c => {
+                const mat = new THREE.MeshStandardMaterial({ color: c.color });
+                c.mesh = new THREE.Mesh(geo, mat);
+                c.mesh.castShadow = true;
+                scene.add(c.mesh);
+            });
+        }
+
+        function renderOnly() {
+            cars.forEach(c => {
+                if(c.mesh) {
+                    // ARAÇ YÜKSEKLİĞİ GÜNCELLEMESİ (0.6)
+                    c.mesh.position.set(c.x, 0.6, c.z);
+                    c.mesh.rotation.y = -c.angle + Math.PI / 2;
+                    if(!c.alive) c.mesh.material.opacity = 0.3;
+                    c.mesh.material.transparent = !c.alive;
+                }
+            });
+            
+            const targetCar = visualBestCar || bestCar;
+            if(targetCar && targetCar.mesh) {
+                const targetPos = new THREE.Vector3(targetCar.x, 0, targetCar.z);
+                const offset = new THREE.Vector3(0, 100, 80); 
+                
+                cameraTargetPos.lerp(targetPos.clone().add(offset), 0.04);
+                camera.position.copy(cameraTargetPos);
+                
+                cameraLookAtPos.lerp(targetPos, 0.04);
+                camera.lookAt(cameraLookAtPos);
+            }
+            renderer.render(scene, camera);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if(isPaused) {
+                if(renderer && scene && camera) renderer.render(scene, camera);
+                return;
+            }
+
+            const loops = simSpeed >= 1.0 ? Math.round(simSpeed) : (Math.random() < simSpeed ? 1 : 0);
+            
+            for(let i=0; i<loops; i++) {
+                updatePhysics();
+                if(isPaused) break;
+            }
+
+            cars.forEach(c => {
+                if(c.mesh) {
+                    // ARAÇ YÜKSEKLİĞİ GÜNCELLEMESİ (0.6)
+                    c.mesh.position.set(c.x, 0.6, c.z);
+                    c.mesh.rotation.y = -c.angle + Math.PI / 2;
+                    
+                    if(!c.alive && !c.finished) c.mesh.material.opacity = 0.3;
+                    else c.mesh.material.opacity = 1.0;
+                    
+                    c.mesh.material.transparent = !c.alive;
+                    c.mesh.visible = c.alive || c.finished;
+                }
+            });
+
+            const targetCar = visualBestCar || bestCar;
+            if(targetCar && targetCar.mesh) {
+                const carPos = new THREE.Vector3(targetCar.x, 0, targetCar.z);
+                const offset = new THREE.Vector3(0, 100, 80); 
+                const targetPos = carPos.clone().add(offset);
+                
+                cameraTargetPos.lerp(targetPos, 0.04);
+                camera.position.copy(cameraTargetPos);
+                
+                cameraLookAtPos.lerp(carPos, 0.04);
+                camera.lookAt(cameraLookAtPos);
+            }
+
+            updateUI();
+            if(renderer && scene && camera) renderer.render(scene, camera);
+        }
+
+        function init() {
+            init3D();
+            resetSim();
+            animate();
+        }
+        
+        init();
+    </script>
+</body>
+</html>
