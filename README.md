@@ -1,12 +1,16 @@
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:1a1a2e,100:e94560&height=200&section=header&text=NeuroRace&fontSize=60&fontColor=fff&animation=twinkling&fontAlignY=38&desc=AI%20cars%20that%20learn%20to%20race%20through%20evolution&descSize=16&descAlignY=58&descColor=ccc" width="100%"/>
+
 <div align="center">
 
-# NeuroRace
+[![Language](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![Three.js](https://img.shields.io/badge/Three.js-r128-black?style=for-the-badge&logo=threedotjs&logoColor=white)](https://threejs.org/)
+[![WebGL](https://img.shields.io/badge/WebGL-990000?style=for-the-badge&logo=webgl&logoColor=white)](https://www.khronos.org/webgl/)
+[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
+![Visitor](https://visitor-badge.laobi.icu/badge?page_id=Sayicon.NeuroRace)
 
 **Kendi kendini evrimleştiren yapay zekâ araçlarının 3B yarış simülasyonu.**
 
-[![Language](https://img.shields.io/badge/language-HTML%2FJS-F7DF1E?style=for-the-badge&logo=javascript)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
-[![Three.js](https://img.shields.io/badge/Three.js-r128-black?style=for-the-badge&logo=three.js)](https://threejs.org/)
-[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
+**[▶ Canlı Demo](https://sayicon.github.io/NeuroRace/NeuroRace.html)**
 
 </div>
 
@@ -16,62 +20,75 @@
 
 NeuroRace, **nöral ağ** ve **genetik algoritma** kombinasyonu olan *nöroevülüsyon* (neuroevolution) tekniğini görselleştiren, tarayıcıda çalışan tek sayfalık bir simülasyondur. 15 araç, her nesilde daha iyi sürüş öğrenerek birbirleriyle yarışır — hiçbir kural elle yazılmaz, her şey evrim yoluyla öğrenilir.
 
-**[Canlı Demo](https://sayicon.github.io/NeuroRace/NeuroRace.html)**
-
 ---
 
 ## Nasıl Çalışır?
 
-### Sensörler
+### Sensör Sistemi
 
-Her araç, 5 yönde uzanan **mesafe sensörüne** sahiptir:
+```mermaid
+graph TD
+    CAR["🚗 ARAÇ"]
 
+    CAR -->|"Sol-90°"| S1["📡 Sensor 1\nSol duvar mesafesi"]
+    CAR -->|"Sol-45°"| S2["📡 Sensor 2\nSol çapraz mesafesi"]
+    CAR -->|"Ön 0°"| S3["📡 Sensor 3\nÖn duvar mesafesi"]
+    CAR -->|"Sağ-45°"| S4["📡 Sensor 4\nSağ çapraz mesafesi"]
+    CAR -->|"Sağ-90°"| S5["📡 Sensor 5\nSağ duvar mesafesi"]
+
+    S1 & S2 & S3 & S4 & S5 -->|"0.0 – 1.0 normalize"| NN["🧠 Nöral Ağ"]
 ```
-        On (0 derece)
-         |
-Sol-45  —+— Sag-45
-        /|\
-       / | \
-  Sol-90  Sag-90
-```
-
-Sensörler, duvara olan uzaklığı 0–1 arasında normalize ederek nöral ağa iletir.
 
 ### Nöral Ağ Mimarisi
 
+```mermaid
+graph LR
+    subgraph INPUT["Giriş Katmanı (5)"]
+        direction TB
+        S1(Sol-90°)
+        S2(Sol-45°)
+        S3(Ön)
+        S4(Sağ-45°)
+        S5(Sağ-90°)
+    end
+
+    subgraph HIDDEN["Gizli Katman (6) — tanh"]
+        direction TB
+        H1((H1))
+        H2((H2))
+        H3((H3))
+        H4((H4))
+        H5((H5))
+        H6((H6))
+    end
+
+    subgraph OUTPUT["Çıkış Katmanı (2) — tanh"]
+        direction TB
+        O1["🔄 Direksiyon\n[-1, 1]"]
+        O2["⚡ Gaz\n[-1, 1]"]
+    end
+
+    S1 & S2 & S3 & S4 & S5 --> H1 & H2 & H3 & H4 & H5 & H6
+    H1 & H2 & H3 & H4 & H5 & H6 --> O1 & O2
 ```
-Giris Katmani   Gizli Katman   Cikis Katmani
-  (5 noron)       (6 noron)      (2 noron)
-     [S1]           [H1]
-     [S2]           [H2]          [Direksiyon]
-     [S3]  ───────► [H3]  ──────► [Gaz]
-     [S4]           [H4]
-     [S5]           [H5]
-                    [H6]
 
-Aktivasyon: tanh   Aktivasyon: tanh
-```
+### Genetik Algoritma (Evrim Döngüsü)
 
-| Katman | Boyut | Aktivasyon |
-|--------|-------|-----------|
-| Giris  | 5     | —         |
-| Gizli  | 6     | tanh      |
-| Cikis  | 2     | tanh      |
+```mermaid
+flowchart TD
+    A["🎲 Nesil Başlangıcı\n15 araç — rastgele ağlar"] --> B["🏁 Simülasyon\n1200 frame"]
+    B --> C{"Araç hayatta mı?"}
+    C -- Hayır --> D["💀 Elendi"]
+    C -- Evet --> E["✅ Checkpoint +1"]
+    E --> B
+    B --> F["🏆 Nesil Sonu\nEn iyi araçlar seçildi"]
+    F --> G["🔀 Çaprazlama\nEbeveyn ağırlıkları birleştirildi"]
+    G --> H["🧬 Mutasyon\n%15 rastgele ağırlık değişimi"]
+    H --> A
 
-Çıkış değerleri **[-1, 1]** aralığında direksiyon açısı ve gaz değeri olarak yorumlanır.
-
-### Genetik Algoritma (Evrim)
-
-Her nesil 1200 frame sürer. Nesil sonunda:
-
-1. **Seçilim** — En fazla checkpoint geçen araçlar hayatta kalır
-2. **Çaprazlama** — İki ebeveyn ağın ağırlıkları birleştirilir
-3. **Mutasyon** — %15 olasılıkla ağırlıklar rastgele değiştirilir
-
-```
-Nesil N:    [Arac1★] [Arac2] [Arac3★] ...
-                  ↘       ↙
-Nesil N+1: [Cocuk] --mutasyon--> [Cocuk']
+    style A fill:#1a1a2e,color:#fff
+    style F fill:#e94560,color:#fff
+    style H fill:#0f3460,color:#fff
 ```
 
 ### Pist Döngüsü
@@ -79,7 +96,7 @@ Nesil N+1: [Cocuk] --mutasyon--> [Cocuk']
 Her 10 nesilde bir pist değişir:
 
 | # | Pist Tipi | Özellik |
-|---|-----------|---------|
+|:-:|-----------|---------|
 | 1 | Organik | Kıvrımlı doğal yollar |
 | 2 | Oval | Yüksek hız düzlüğü |
 | 3 | Yıldız | Teknik keskin virajlar |
@@ -104,11 +121,8 @@ Her 10 nesilde bir pist değişir:
 Herhangi bir kurulum veya sunucu gerekmez — tek dosya:
 
 ```bash
-# Klonla
 git clone https://github.com/Sayicon/NeuroRace.git
 cd NeuroRace
-
-# Tarayicida ac
 start NeuroRace.html        # Windows
 open NeuroRace.html         # macOS
 xdg-open NeuroRace.html     # Linux
@@ -120,17 +134,15 @@ xdg-open NeuroRace.html     # Linux
 
 ## Yapılandırma
 
-`NeuroRace.html` içindeki `CONFIG` nesnesini düzenleyerek simülasyonu özelleştirebilirsiniz:
-
 ```javascript
 const CONFIG = {
-    carCount: 15,         // Ayni anda yarisan arac sayisi
-    sensorCount: 5,       // Sensor sayisi
-    mutationRate: 0.15,   // Mutasyon orani (%15)
-    generationTime: 1200, // Nesil uzunlugu (frame)
-    maxSpeed: 1.5,        // Maksimum hiz
-    trackWidth: 18,       // Pist genisligi
-    rayLength: 70,        // Sensor menzili
+    carCount: 15,         // Aynı anda yarışan araç sayısı
+    sensorCount: 5,       // Sensör sayısı
+    mutationRate: 0.15,   // Mutasyon oranı (%15)
+    generationTime: 1200, // Nesil uzunluğu (frame)
+    maxSpeed: 1.5,        // Maksimum hız
+    trackWidth: 18,       // Pist genişliği
+    rayLength: 70,        // Sensör menzili
 };
 ```
 
@@ -148,7 +160,7 @@ const CONFIG = {
 
 ## Neuroevolution Nedir?
 
-Neuroevolution, nöral ağ ağırlıklarını **gradyan tabanlı geri yayılım (backpropagation) kullanmadan**, yalnızca evrimsel baskı ile optimize eden bir yaklaşımdır. Etiketli veri seti gerektirmez; hayatta kalma ve çoğalma yeterliliği tanımlayıcıdır.
+Neuroevolution, nöral ağ ağırlıklarını **gradyan tabanlı geri yayılım (backpropagation) kullanmadan**, yalnızca evrimsel baskı ile optimize eden bir yaklaşımdır. Etiketli veri seti gerektirmez; hayatta kalma yeterliliği yeterlidir.
 
 NeuroRace'de bu prensip doğrudan uygulanır: araçlar sürmeyi kimseye sormadan, sadece hayatta kalmaya çalışarak öğrenir.
 
@@ -156,8 +168,8 @@ NeuroRace'de bu prensip doğrudan uygulanır: araçlar sürmeyi kimseye sormadan
 
 <div align="center">
 
-*42 Kocaeli öğrencisi tarafından geliştirildi.*
-
-[![GitHub](https://img.shields.io/badge/GitHub-Sayicon-181717?style=flat-square&logo=github)](https://github.com/Sayicon)
+[![GitHub](https://img.shields.io/badge/GitHub-Sayicon-181717?style=for-the-badge&logo=github)](https://github.com/Sayicon)
 
 </div>
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:e94560,100:1a1a2e&height=120&section=footer" width="100%"/>
