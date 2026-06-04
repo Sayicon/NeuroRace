@@ -42,34 +42,19 @@ graph TD
 ### Nöral Ağ Mimarisi
 
 ```mermaid
-graph LR
-    subgraph INPUT["Giriş Katmanı (5)"]
-        direction TB
-        S1(Sol-90°)
-        S2(Sol-45°)
-        S3(Ön)
-        S4(Sağ-45°)
-        S5(Sağ-90°)
+flowchart LR
+    subgraph INPUT["Giriş — 5 nöron"]
+        S["Sol-90 · Sol-45 · Ön · Sağ-45 · Sağ-90\nDuvar mesafeleri  →  0.0 – 1.0"]
+    end
+    subgraph HIDDEN["Gizli — 6 nöron · tanh"]
+        H["H1 · H2 · H3 · H4 · H5 · H6"]
+    end
+    subgraph OUTPUT["Çıkış — 2 nöron · tanh"]
+        O["Direksiyon · Gaz\n−1.0 ile +1.0 arası"]
     end
 
-    subgraph HIDDEN["Gizli Katman (6) — tanh"]
-        direction TB
-        H1((H1))
-        H2((H2))
-        H3((H3))
-        H4((H4))
-        H5((H5))
-        H6((H6))
-    end
-
-    subgraph OUTPUT["Çıkış Katmanı (2) — tanh"]
-        direction TB
-        O1["🔄 Direksiyon\n[-1, 1]"]
-        O2["⚡ Gaz\n[-1, 1]"]
-    end
-
-    S1 & S2 & S3 & S4 & S5 --> H1 & H2 & H3 & H4 & H5 & H6
-    H1 & H2 & H3 & H4 & H5 & H6 --> O1 & O2
+    INPUT -->|"30 ağırlık\nweightsIH"| HIDDEN
+    HIDDEN -->|"12 ağırlık\nweightsHO"| OUTPUT
 ```
 
 ### Genetik Algoritma (Evrim Döngüsü)
